@@ -14,6 +14,55 @@ exports.set_messages_read_in_narrow = function (value) {
     exports.messages_read_in_narrow = value;
 };
 
+function make_id_set() {
+    /* This is just a basic set class where
+       elements should be numeric ids.
+    */
+
+    const self = {};
+    const ids = new Dict();
+
+    self.clear = function () {
+        ids.clear();
+    };
+
+    self.add = function (id) {
+        ids.set(id, true);
+    };
+
+    self.has = function (id) {
+        return ids.has(id);
+    };
+
+    self.add_many = function (id_list) {
+        _.each(id_list, function (id) {
+            ids.set(id, true);
+        });
+    };
+
+    self.del = function (id) {
+        ids.del(id);
+    };
+
+    self.count = function () {
+        return ids.num_items();
+    };
+
+    self.members = function () {
+        return ids.keys();
+    };
+
+    self.max = function () {
+        return _.max(ids.keys());
+    };
+
+    self.is_empty = function () {
+        return ids.is_empty();
+    };
+
+    return self;
+}
+
 const unread_messages = new Set();
 
 function make_bucketer(options) {
@@ -44,10 +93,10 @@ function make_bucketer(options) {
         reverse_lookup.set(item_id, bucket);
     };
 
-    self.delete = function (item_id) {
+    self.del = function (item_id) {
         const bucket = reverse_lookup.get(item_id);
         if (bucket) {
-            bucket.delete(item_id);
+            bucket.del(item_id);
             reverse_lookup.del(item_id);
         }
     };
@@ -72,7 +121,7 @@ exports.unread_pm_counter = (function () {
 
     const bucketer = make_bucketer({
         fold_case: false,
-        make_bucket: () => new Set(),
+        make_bucket: make_id_set,
     });
 
     self.clear = function () {
@@ -113,14 +162,14 @@ exports.unread_pm_counter = (function () {
     };
 
     self.del = function (message_id) {
-        bucketer.delete(message_id);
+        bucketer.del(message_id);
     };
 
     self.get_counts = function () {
         const pm_dict = new Dict(); // Hash by user_ids_string -> count
         let total_count = 0;
         bucketer.each(function (id_set, user_ids_string) {
-            const count = id_set.size;
+            const count = id_set.count();
             pm_dict.set(user_ids_string, count);
             total_count += count;
         });
@@ -140,14 +189,14 @@ exports.unread_pm_counter = (function () {
         if (!bucket) {
             return 0;
         }
-        return bucket.size;
+        return bucket.count();
     };
 
     self.get_msg_ids = function () {
         const lists = [];
 
         bucketer.each(function (id_set) {
-            const members = [...id_set];
+            const members = id_set.members();
             lists.push(members);
         });
 
@@ -167,7 +216,7 @@ exports.unread_pm_counter = (function () {
             return [];
         }
 
-        const ids = [...bucket];
+        const ids = bucket.members();
         return util.sorted_ids(ids);
     };
 
@@ -177,7 +226,7 @@ exports.unread_pm_counter = (function () {
 function make_per_stream_bucketer() {
     return make_bucketer({
         fold_case: true, // bucket keys are topics
-        make_bucket: () => new Set(),
+        make_bucket: make_id_set,
     });
 }
 
@@ -220,7 +269,7 @@ exports.unread_topic_counter = (function () {
     };
 
     self.del = function (msg_id) {
-        bucketer.delete(msg_id);
+        bucketer.del(msg_id);
     };
 
     function str_dict() {
@@ -248,7 +297,7 @@ exports.unread_topic_counter = (function () {
             res.topic_count.set(stream_id, str_dict());
             let stream_count = 0;
             per_stream_bucketer.each(function (msgs, topic) {
-                const topic_count = msgs.size;
+                const topic_count = msgs.count();
                 res.topic_count.get(stream_id).set(topic, topic_count);
                 if (!muting.is_topic_muted(stream_id, topic)) {
                     stream_count += topic_count;
@@ -281,7 +330,7 @@ exports.unread_topic_counter = (function () {
 
         const result = _.map(topic_names, function (topic_name) {
             const msgs = per_stream_bucketer.get_bucket(topic_name);
-            const message_id = Math.max(...msgs);
+            const message_id = msgs.max();
 
             return {
                 // retrieve the topic with its original case, since topic_name
@@ -306,7 +355,7 @@ exports.unread_topic_counter = (function () {
         const sub = stream_data.get_sub_by_id(stream_id);
         per_stream_bucketer.each(function (msgs, topic) {
             if (sub && !muting.is_topic_muted(stream_id, topic)) {
-                stream_count += msgs.size;
+                stream_count += msgs.count();
             }
         });
 
@@ -324,7 +373,7 @@ exports.unread_topic_counter = (function () {
             return 0;
         }
 
-        return topic_bucket.size;
+        return topic_bucket.count();
     };
 
     self.get_msg_ids_for_stream = function (stream_id) {
@@ -338,7 +387,7 @@ exports.unread_topic_counter = (function () {
         const sub = stream_data.get_sub_by_id(stream_id);
         per_stream_bucketer.each(function (msgs, topic) {
             if (sub && !muting.is_topic_muted(stream_id, topic)) {
-                topic_lists.push([...msgs]);
+                topic_lists.push(msgs.members());
             }
         });
 
@@ -358,7 +407,7 @@ exports.unread_topic_counter = (function () {
             return [];
         }
 
-        const ids = [...topic_bucket];
+        const ids = topic_bucket.members();
         return util.sorted_ids(ids);
     };
 
@@ -375,7 +424,7 @@ exports.unread_topic_counter = (function () {
             return false;
         }
 
-        return id_set.size !== 0;
+        return !id_set.is_empty();
     };
 
     return self;
