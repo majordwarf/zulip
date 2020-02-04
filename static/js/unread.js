@@ -68,7 +68,7 @@ const unread_messages = make_id_set();
 function make_bucketer(options) {
     const self = {};
     const key_to_bucket = new Map();
-    const reverse_lookup = new IntDict();
+    const reverse_lookup = new Dict();
 
     self.clear = function () {
         key_to_bucket.clear();
