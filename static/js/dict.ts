@@ -1,23 +1,23 @@
 import * as _ from 'underscore';
 
-type KeyValue<V> = { k: string; v: V };
-type Items<V> = {
-    [key: string]: KeyValue<V>;
+type KeyValue<K, V> = { k: K; v: V };
+type Items<K, V> = {
+    [key: string]: KeyValue<K, V>;
 };
 
-export class Dict<V> {
-    private _items: Items<V> = {};
+export class Dict<K, V> {
+    private _items: Items<K, V> = {};
 
     /**
      * Constructs a Dict object from an existing object's keys and values.
      * @param obj - A javascript object
      */
-    static from<V>(obj: { [key: string]: V }): Dict<V> {
+    static from<V>(obj: { [key: string]: V }): Dict<string, V> {
         if (typeof obj !== "object" || obj === null) {
             throw new TypeError("Cannot convert argument to Dict");
         }
 
-        const dict = new Dict<V>();
+        const dict = new Dict<string, V>();
         _.each(obj, function (val: V, key: string) {
             dict.set(key, val);
         });
@@ -30,25 +30,25 @@ export class Dict<V> {
      * Intended for use as a set data structure.
      * @param arr - An array of keys
      */
-    static from_array<V>(arr: string[]): Dict<V | true> {
+    static from_array<K, V>(arr: K[]): Dict<K, V | true> {
         if (!(arr instanceof Array)) {
             throw new TypeError("Argument is not an array");
         }
 
-        const dict = new Dict<V | true>();
+        const dict = new Dict<K, V | true>();
         for (const key of arr) {
             dict.set(key, true);
         }
         return dict;
     }
 
-    clone(): Dict<V> {
-        const dict = new Dict<V>();
+    clone(): Dict<K, V> {
+        const dict = new Dict<K, V>();
         dict._items = { ...this._items };
         return dict;
     }
 
-    get(key: string): V | undefined {
+    get(key: K): V | undefined {
         const mapping = this._items[this._munge(key)];
         if (mapping === undefined) {
             return undefined;
@@ -56,7 +56,7 @@ export class Dict<V> {
         return mapping.v;
     }
 
-    set(key: string, value: V): V {
+    set(key: K, value: V): V {
         this._items[this._munge(key)] = {k: key, v: value};
         return value;
     }
@@ -65,7 +65,7 @@ export class Dict<V> {
      * If `key` exists in the Dict, return its value. Otherwise insert `key`
      * with a value of `value` and return the value.
      */
-    setdefault(key: string, value: V): V {
+    setdefault(key: K, value: V): V {
         const mapping = this._items[this._munge(key)];
         if (mapping === undefined) {
             return this.set(key, value);
@@ -73,15 +73,15 @@ export class Dict<V> {
         return mapping.v;
     }
 
-    has(key: string): boolean {
+    has(key: K): boolean {
         return _.has(this._items, this._munge(key));
     }
 
-    del(key: string): void {
+    del(key: K): void {
         delete this._items[this._munge(key)];
     }
 
-    keys(): string[] {
+    keys(): K[] {
         return _.pluck(_.values(this._items), 'k');
     }
 
@@ -89,9 +89,9 @@ export class Dict<V> {
         return _.pluck(_.values(this._items), 'v');
     }
 
-    items(): [string, V][] {
+    items(): [K, V][] {
         return _.map(_.values(this._items),
-            (mapping: KeyValue<V>): [string, V] => [mapping.k, mapping.v]);
+            (mapping: KeyValue<K, V>): [K, V] => [mapping.k, mapping.v]);
     }
 
     num_items(): number {
@@ -102,8 +102,8 @@ export class Dict<V> {
         return _.isEmpty(this._items);
     }
 
-    each(f: (v: V, k?: string) => void): void {
-        _.each(this._items, (mapping: KeyValue<V>) => f(mapping.v, mapping.k));
+    each(f: (v: V, k?: K) => void): void {
+        _.each(this._items, (mapping: KeyValue<K, V>) => f(mapping.v, mapping.k));
     }
 
     clear(): void {
@@ -111,17 +111,12 @@ export class Dict<V> {
     }
 
     // Convert keys to strings and handle undefined.
-    private _munge(key: string): string | undefined {
+    private _munge(key: K): string | undefined {
         if (key === undefined) {
             blueslip.error("Tried to call a Dict method with an undefined key.");
             return undefined;
         }
-
-        if (typeof key !== 'string') {
-            blueslip.error("Tried to call a Dict method with a non-string.");
-            key = (key as object).toString();
-        }
-
-        return ':' + key;
+        const str_key = ':' + key.toString();
+        return str_key;
     }
 }
