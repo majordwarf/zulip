@@ -1,5 +1,6 @@
 const render_hotspot_overlay = require('../templates/hotspot_overlay.hbs');
 const render_intro_reply_hotspot = require('../templates/intro_reply_hotspot.hbs');
+const render_skip_tour_confirmation = require('../templates/skip_tour_confirmation.hbs');
 
 // popover orientations
 const TOP = 'top';
@@ -55,14 +56,14 @@ exports.post_hotspot_as_read = function (hotspot_name) {
 };
 
 // checkpoint to track if current hotspot is found in HOTSPOT_LOCATIONS map
-let found = false;
+let tour_skip = false;
 
 exports.post_hotspot_as_skip = function (hotspot_name) {
     for (const key of HOTSPOT_LOCATIONS.keys()) {
         if (key === hotspot_name) {
-            found = true;
+            tour_skip = true;
         }
-        if (found === true) {
+        if (tour_skip === true) {
             channel.post({
                 url: '/json/users/me/hotspots',
                 data: { hotspot: JSON.stringify(key) },
@@ -267,7 +268,7 @@ function close_read_hotspots(new_hotspots) {
 
 exports.load_new = function (new_hotspots) {
     // don't load new hotspots if the user skips the tour
-    if (found === true) {
+    if (tour_skip === true) {
         return;
     }
 
@@ -280,6 +281,16 @@ exports.load_new = function (new_hotspots) {
 
 exports.initialize = function () {
     exports.load_new(page_params.hotspots);
+
+    $("#hotspot-message").on("click", ".hotspot-skip", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const skip_tour_modal = render_skip_tour_confirmation();
+        $("#skip_tour_modal").remove();
+        $(".message_list").append(skip_tour_modal);
+        overlays.open_modal('#skip_tour_modal');
+    });
 };
 
 window.hotspots = exports;
